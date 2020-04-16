@@ -1,0 +1,16 @@
+{
+  "name": "github-api-test",
+  "version": "1.0.0",
+  "description": "Test Github API endpoints with HFLA website project",
+  "main": "index.js",
+  "dependencies": {
+    "dotenv": "^8.2.0",
+    "request": "2.88.0",
+    "request-promise": "4.2.5"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Kian Badie",
+  "license": "ISC"
+}
