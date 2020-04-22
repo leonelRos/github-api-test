@@ -23,7 +23,8 @@ var github = {
           name: project.name,
           languages: { url: project.languages_url, data: [] },
           contributors: { url: project.contributors_url, data: [] },
-          issues: { url: project.issues_url.substring(0, project.issues_url.length-9), data: [] }
+          issues: { url: project.issues_url.substring(0, project.issues_url.length-9), data: [] },
+          comments: {url: project.issue_comment_url.substring(0, project.issue_comment_url.length-9), data: []}
         });
       });
     }).catch(function(err) {
@@ -134,6 +135,69 @@ var github = {
     }).catch(function(err){
       return err.message;
     });
+  },
+  getComments: function(url){
+    return request({
+      "method": "GET",
+      "uri": url,
+      "json": true,
+      "resolveWithFullResponse": true,
+      "headers": {
+        "Authorization": "token " + github.token,
+        "User-Agent": github.userAgent
+      }
+    }).then(function(response) {
+      // Get the total amount of pages in the response
+      let comments = [];
+      let links = response.headers.link.split(",");
+      let lastPageString = links[1]; // NEED TO CHECK WHAT HAPPENS IF THERE IS ONLY ONE PAGE
+      let lastPageTrim = lastPageString.split(";")[0].trim();
+      let lastPageUrl = lastPageTrim.substring(1, lastPageTrim.length - 1);
+      let parsed = querystring.parse(lastPageUrl, "?", "=");
+      let lastPage = parsed.page;
+      // Loop through every page possible in response
+      for(i = 1; i <= lastPage; i++){
+        let url = `${response.request.href}?page=${i}`;
+        comments = comments.concat(github.getCommentsHelper(url));
+      }
+      return Promise.all(comments).then(function(result){
+        return [].concat.apply([], result);
+      });
+    }).catch(function(err) {
+        return err.message;
+    });
+  },
+  getCommentsHelper: function(url){
+    return request({
+      "method": "GET",
+      "uri": url,
+      "json": true,
+      "headers": {
+        "Authorization": "token " + github.token,
+        "User-Agent": github.userAgent
+      }
+    }).then(function(body){
+      let result = [];
+      for(comment of body){
+        let { url, issue_url, id, user } = comment;
+        let { login: user_login, avatar_url: user_avatar_url, url: user_url, gravatar_id, html_url } = user;
+        result.push({
+          url,
+          issue_url,
+          id,
+          user: {
+            user_login,
+            user_avatar_url,
+            user_url,
+            gravatar_id,
+            html_url
+          }
+        });
+      }
+      return Promise.resolve(result);
+    }).catch(function(err){
+      return err.message;
+    });
   }
 }
 
@@ -146,10 +210,12 @@ async function main(params) {
   let lps = [], ldone = false
   let cps = [], cdone = false
   let ips = [], idone = false
+  let icps = [], icdone = false
   for (i = 0; i < github.apiData.length; i++) {
     lps.push(github.getLanguageInfo(github.apiData[i].languages.url));
     cps.push(github.getContributorsInfo(github.apiData[i].contributors.url));
-    ips.push(github.getIssues(github.apiData[i].issues.url));
+    // ips.push(github.getIssues(github.apiData[i].issues.url));
+    icps.push(github.getComments(github.apiData[i].comments.url));
   }
   Promise.all(lps)
     .then(function(ls) {
@@ -173,16 +239,26 @@ async function main(params) {
     .catch(function(e) {
       console.log(e)
     });
- Promise.all(ips)
-  .then(function(is) {
-    for (i = 0; i < is.length; i++) {
-      github.apiData[i].issues.data = is[i];
-    }
-    finish()
-  })
-  .catch(function(e) {
-    console.log(e)
-  });
+//  Promise.all(ips)
+//     .then(function(is) {
+//       for (i = 0; i < is.length; i++) {
+//         github.apiData[i].issues.data = is[i];
+//       }
+//       finish()
+//     })
+//     .catch(function(e) {
+//       console.log(e)
+//     });
+ Promise.all(icps)
+    .then(function(ics){
+      for (i = 0; i < ics.length; i++) {
+        github.apiData[i].comments.data = ics[i];
+      }
+      finish()
+    })
+    .catch(function(e){
+      console.log(e);
+    });
 
   function finish(){
     fs.writeFileSync('github-data.json', JSON.stringify(github.apiData, null, 2));
