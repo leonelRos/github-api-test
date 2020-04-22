@@ -1,7 +1,7 @@
 const fs = require('fs');
 const request = require('request-promise');
 const querystring = require('querystring');
-const env = require('dotenv').config()
+const env = require('dotenv').config();
 
 var github = {
   token: null,
@@ -93,13 +93,11 @@ var github = {
       let lastPage = parsed.page;
       // Loop through every page possible in response
       for(i = 1; i <= lastPage; i++){
-        // Construct url
         let url = `${response.request.href}&page=${i}`;
-        console.log(url);
-        issues.push(github.getIssuesHelper(url));
+        issues = issues.concat(github.getIssuesHelper(url));
       }
-      Promise.all(issues).then(function(result){
-        return Promise.resolve(result);
+      return Promise.all(issues).then(function(result){
+        return [].concat.apply([], result);
       });
     }).catch(function(err){
       return err.message;
@@ -115,7 +113,24 @@ var github = {
         "User-Agent": github.userAgent
       }
     }).then(function(body){
-      return Promise.resolve(body);
+      let result = [];
+      for(issue of body){
+        let { url, comments_url, id, number, user, comments } = issue;
+        let { login: user_login, avatar_url: user_avatar_url, url: user_url } = user;
+        result.push({
+          url,
+          comments_url,
+          id,
+          number,
+          user: {
+            user_login,
+            user_avatar_url,
+            user_url
+          },
+          comments
+        });
+      }
+      return Promise.resolve(result);
     }).catch(function(err){
       return err.message;
     });
@@ -136,7 +151,6 @@ async function main(params) {
     cps.push(github.getContributorsInfo(github.apiData[i].contributors.url));
     ips.push(github.getIssues(github.apiData[i].issues.url));
   }
-  /*
   Promise.all(lps)
     .then(function(ls) {
       for (i = 0; i < ls.length; i++) {
@@ -159,7 +173,6 @@ async function main(params) {
     .catch(function(e) {
       console.log(e)
     });
-  */
  Promise.all(ips)
   .then(function(is) {
     for (i = 0; i < is.length; i++) {
